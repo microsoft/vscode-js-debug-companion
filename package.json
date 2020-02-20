@@ -1,0 +1,72 @@
+{
+  "name": "js-debug-companion",
+  "displayName": "JavaScript Debugger Companion Extension",
+  "description": "Companion extension to js-debug that provides capability for remote debugging",
+  "version": "0.0.1",
+  "publisher": "ms-vscode",
+  "engines": {
+    "vscode": "^1.42.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/microsoft/vscode-js-debug-companion.git"
+  },
+  "author": "Connor Peet <connor@peet.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode-js-debug-companion/issues"
+  },
+  "homepage": "https://github.com/microsoft/vscode-js-debug-companion#readme",
+  "activationEvents": [
+    "onCommand:js-debug-companion.launchAndAttach",
+    "onCommand:js-debug-companion.kill"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {},
+  "extensionKind": [
+    "ui"
+  ],
+  "scripts": {
+    "vscode:prepublish": "rimraf out && webpack",
+    "compile": "rimraf out && tsc",
+    "watch": "rimraf out && tsc --watch",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "node ./out/test/runTest.js",
+    "test:lint": "eslint \"src/**/*.ts\"",
+    "test:fmt": "prettier --list-different \"src/**/*.ts\"",
+    "fmt": "prettier --write \"src/**/*.ts\"&& npm run test:lint -- --fix"
+  },
+  "prettier": {
+    "trailingComma": "all",
+    "singleQuote": true,
+    "printWidth": 100,
+    "tabWidth": 2
+  },
+  "devDependencies": {
+    "@types/glob": "^7.1.1",
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^12.11.7",
+    "@types/vscode": "^1.42.0",
+    "@typescript-eslint/eslint-plugin": "^2.11.0",
+    "@typescript-eslint/parser": "^2.11.0",
+    "eslint": "^6.7.2",
+    "eslint-plugin-header": "^3.0.0",
+    "glob": "^7.1.5",
+    "mocha": "^6.2.2",
+    "prettier": "^1.19.1",
+    "rimraf": "^3.0.2",
+    "ts-loader": "^6.2.1",
+    "typescript": "^3.7.5",
+    "vscode-test": "^1.2.2",
+    "webpack": "^4.41.6",
+    "webpack-cli": "^3.3.11"
+  },
+  "dependencies": {
+    "execa": "^4.0.0",
+    "vscode-js-debug-browsers": "^1.0.0",
+    "vscode-nls": "^4.1.1"
+  }
+}
