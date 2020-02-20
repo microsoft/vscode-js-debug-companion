@@ -29,6 +29,7 @@
   "extensionKind": [
     "ui"
   ],
+  "api": "none",
   "scripts": {
     "vscode:prepublish": "rimraf out && webpack",
     "compile": "rimraf out && tsc",

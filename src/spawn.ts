@@ -94,11 +94,23 @@ export class BrowserSpawner {
       args.unshift(`--user-data-dir=${userDataDir}`);
     }
 
+    // The cwd defaults to the working directory of the remote extension, but
+    // this probably won't exist on the local host. If it doesn't just set it
+    // to the process' cwd.
+    let cwd = params.params.cwd || params.params.webRoot;
+    try {
+      if (!cwd || !(await fs.stat(cwd)).isDirectory()) {
+        cwd = process.cwd();
+      }
+    } catch {
+      cwd = process.cwd(); // catch ENOENT
+    }
+
     return spawn(binary, args, {
       detached: process.platform !== 'win32',
       env: { ELECTRON_RUN_AS_NODE: undefined, ...params.params.env },
-      cwd: params.params.cwd || params.params.webRoot || process.cwd(),
       stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
+      cwd,
     });
   }
 }
