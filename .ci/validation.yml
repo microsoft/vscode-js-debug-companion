@@ -24,5 +24,8 @@ jobs:
   - script: npm ci
     displayName: 'npm ci'
 
+  - script: npm run compile
+    displayName: 'npm run compile'
+
   - script: npm test
     displayName: 'npm test'
