@@ -29,3 +29,5 @@ jobs:
 
   - script: npm test
     displayName: 'npm test'
+    env:
+      DISPLAY: ':99.0'
