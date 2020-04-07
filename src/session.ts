@@ -6,6 +6,7 @@ import { Disposable, EventEmitter } from 'vscode';
 import { ChildProcess } from 'child_process';
 import { Socket } from 'net';
 import { Writable, Readable } from 'stream';
+import { createGzip, createGunzip } from 'zlib';
 
 /**
  * The Session manages the lifecycle for a single top-level browser debug sesssion.
@@ -77,7 +78,14 @@ export class Session implements Disposable {
     const cpIn = this.browserProcess.stdio[3] as Writable;
     const cpOut = this.browserProcess.stdio[4] as Readable;
 
-    cpOut.pipe(this.socket);
-    this.socket.pipe(cpIn);
+    const compressor = createGzip();
+    cpOut.pipe(compressor).pipe(this.socket);
+    cpOut.on('data', (data: Buffer) => {
+      if (data.includes(0)) {
+        compressor.flush(2 /* Z_SYNC_FLUSH */);
+      }
+    });
+
+    this.socket.pipe(createGunzip()).pipe(cpIn);
   }
 }
