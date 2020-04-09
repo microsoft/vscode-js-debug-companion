@@ -2,7 +2,7 @@
   "name": "js-debug-companion",
   "displayName": "JavaScript Debugger Companion Extension",
   "description": "Companion extension to js-debug that provides capability for remote debugging",
-  "version": "0.0.4",
+  "version": "1.0.0",
   "publisher": "ms-vscode",
   "engines": {
     "vscode": "^1.42.0"
