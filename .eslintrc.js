@@ -10,7 +10,7 @@ module.exports = {
   rules: {
     '@typescript-eslint/no-use-before-define': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
-    '@typescript-eslint/interface-name-prefix': ['error', { prefixWithI: 'always' }],
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
     'header/header': [
       'error',
       'block',
