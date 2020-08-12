@@ -12,6 +12,10 @@ export interface ILaunchParams {
   proxyUri: string;
   launchId: number;
   browserArgs: string[];
+  attach?: {
+    host: string;
+    port: number;
+  };
   // See IChromiumLaunchConfiguration in js-debug for the full type, a subset of props are here:
   params: {
     env: Readonly<{ [key: string]: string | null }>;

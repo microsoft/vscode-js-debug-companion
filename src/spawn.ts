@@ -2,21 +2,24 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { UserError } from './errors';
+import { spawn } from 'child_process';
+import execa from 'execa';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import {
-  EdgeBrowserFinder,
   ChromeBrowserFinder,
+  EdgeBrowserFinder,
   isQuality,
   Quality,
 } from 'vscode-js-debug-browsers';
-import { promises as fs } from 'fs';
-import execa from 'execa';
-import { spawn } from 'child_process';
 import * as nls from 'vscode-nls';
+import { UserError } from './errors';
 import { ILaunchParams } from './extension';
-import { join } from 'path';
+import { PipedTarget, ServerTarget } from './target';
 
 const localize = nls.loadMessageBundle();
+const debugPortPrefix = '--remote-debugging-port=';
+const debugPipeArg = '--remote-debugging-port=';
 
 export class BrowserSpawner {
   private readonly finders = {
@@ -89,7 +92,6 @@ export class BrowserSpawner {
     const args = params.browserArgs.slice();
     const userDataDir = this.getUserDataDir(params);
     // prepend args to not interfere with any positional arguments (e.g. url to open)
-    args.unshift('--remote-debugging-pipe');
     if (userDataDir !== undefined) {
       args.unshift(`--user-data-dir=${userDataDir}`);
     }
@@ -106,11 +108,30 @@ export class BrowserSpawner {
       cwd = process.cwd(); // catch ENOENT
     }
 
-    return spawn(binary, args, {
+    const port = args.find(a => a.startsWith(debugPortPrefix))?.slice(debugPortPrefix.length);
+    if (!port) {
+      return new PipedTarget(
+        spawn(binary, args, {
+          detached: process.platform !== 'win32',
+          env: { ELECTRON_RUN_AS_NODE: undefined, ...params.params.env },
+          stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
+          cwd,
+        }),
+      );
+    }
+
+    if (!args.includes(debugPipeArg)) {
+      // back compat with older js-debug versions
+      args.unshift(debugPipeArg);
+    }
+
+    const child = spawn(binary, args, {
       detached: process.platform !== 'win32',
       env: { ELECTRON_RUN_AS_NODE: undefined, ...params.params.env },
-      stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
+      stdio: 'ignore',
       cwd,
     });
+
+    return await ServerTarget.create(child, Number(port));
   }
 }

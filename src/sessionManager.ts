@@ -2,12 +2,13 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { Disposable } from 'vscode';
-import { Session } from './session';
-import { ILaunchParams } from './extension';
-import { BrowserSpawner } from './spawn';
 import { Socket } from 'net';
 import * as vscode from 'vscode';
+import { Disposable } from 'vscode';
+import { ILaunchParams } from './extension';
+import { Session } from './session';
+import { BrowserSpawner } from './spawn';
+import { AttachTarget } from './target';
 
 export class SessionManager implements Disposable {
   private readonly sessions = new Map<number, Session>();
@@ -28,7 +29,9 @@ export class SessionManager implements Disposable {
 
     await Promise.all([
       this.addChildSocket(session, params),
-      this.addChildBrowser(session, params),
+      params.attach
+        ? this.addChildAttach(session, params.attach)
+        : this.addChildBrowser(session, params),
     ]);
   }
 
@@ -62,5 +65,10 @@ export class SessionManager implements Disposable {
   private async addChildBrowser(session: Session, params: ILaunchParams) {
     const browser = await this.spawn.launch(params);
     session.attachChild(browser);
+  }
+
+  private async addChildAttach(session: Session, params: { host: string; port: number }) {
+    const target = await AttachTarget.create(params.host, params.port);
+    session.attachChild(target);
   }
 }

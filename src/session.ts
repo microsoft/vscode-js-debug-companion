@@ -2,11 +2,10 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { Disposable, EventEmitter } from 'vscode';
-import { ChildProcess } from 'child_process';
 import { Socket } from 'net';
-import { Writable, Readable } from 'stream';
-import { createGzip, createGunzip } from 'zlib';
+import { Disposable, EventEmitter } from 'vscode';
+import { createGunzip, createGzip } from 'zlib';
+import { ITarget } from './target';
 
 /**
  * The Session manages the lifecycle for a single top-level browser debug sesssion.
@@ -19,7 +18,7 @@ export class Session implements Disposable {
   public readonly onClose = this.closeEmitter.event;
 
   private disposed = false;
-  private browserProcess?: ChildProcess;
+  private browserProcess?: ITarget;
   private socket?: Socket;
 
   constructor() {
@@ -46,15 +45,15 @@ export class Session implements Disposable {
   /**
    * Attaches the browser child process.
    */
-  public attachChild(child: ChildProcess) {
+  public attachChild(target: ITarget) {
     if (this.disposed) {
-      child.kill();
+      target.dispose();
       return;
     }
 
-    this.browserProcess = child;
-    child.on('close', () => this.closeEmitter.fire());
-    child.on('error', err => this.errorEmitter.fire(err));
+    this.browserProcess = target;
+    target.onClose(() => this.closeEmitter.fire());
+    target.onError(err => this.errorEmitter.fire(err));
 
     this.tryActivate();
   }
@@ -64,8 +63,7 @@ export class Session implements Disposable {
    */
   public dispose() {
     if (!this.disposed) {
-      this.socket?.destroy();
-      this.browserProcess?.kill();
+      this.browserProcess?.dispose();
       this.disposed = true;
     }
   }
@@ -75,17 +73,15 @@ export class Session implements Disposable {
       return;
     }
 
-    const cpIn = this.browserProcess.stdio[3] as Writable;
-    const cpOut = this.browserProcess.stdio[4] as Readable;
-
     const compressor = createGzip();
-    cpOut.pipe(compressor).pipe(this.socket);
+    const cpOut = this.browserProcess.output;
+    cpOut.pipe(compressor).pipe(this.socket).resume();
     cpOut.on('data', (data: Buffer) => {
       if (data.includes(0)) {
         compressor.flush(2 /* Z_SYNC_FLUSH */);
       }
     });
 
-    this.socket.pipe(createGunzip()).pipe(cpIn);
+    this.socket.pipe(createGunzip()).pipe(this.browserProcess.input);
   }
 }
