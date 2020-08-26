@@ -15,6 +15,7 @@ import {
 import * as nls from 'vscode-nls';
 import { UserError } from './errors';
 import { ILaunchParams } from './extension';
+import { exists } from './fs';
 import { PipedTarget, ServerTarget } from './target';
 
 const localize = nls.loadMessageBundle();
@@ -65,17 +66,23 @@ export class BrowserSpawner {
     return resolved;
   }
 
-  private getUserDataDir(params: ILaunchParams) {
+  private async getUserDataDir(params: ILaunchParams) {
     const requested = params.params.userDataDir;
     if (requested === false) {
       return;
     }
 
+    const defaultDir = join(
+      this.storagePath,
+      params.browserArgs?.includes('--headless') ? '.headless-profile' : '.profile',
+    );
+
     if (requested === true) {
-      return join(
-        this.storagePath,
-        params.browserArgs?.includes('--headless') ? '.headless-profile' : '.profile',
-      );
+      return defaultDir;
+    }
+
+    if (!(await exists(requested))) {
+      return defaultDir;
     }
 
     return requested;
@@ -100,12 +107,8 @@ export class BrowserSpawner {
     // this probably won't exist on the local host. If it doesn't just set it
     // to the process' cwd.
     let cwd = params.params.cwd || params.params.webRoot;
-    try {
-      if (!cwd || !(await fs.stat(cwd)).isDirectory()) {
-        cwd = process.cwd();
-      }
-    } catch {
-      cwd = process.cwd(); // catch ENOENT
+    if (!cwd || !(await exists(cwd))) {
+      cwd = process.cwd();
     }
 
     const port = args.find(a => a.startsWith(debugPortPrefix))?.slice(debugPortPrefix.length);
