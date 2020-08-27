@@ -97,7 +97,7 @@ export class BrowserSpawner {
     const binary = await this.findBrowserPath(params.type, params.params.runtimeExecutable);
 
     const args = params.browserArgs.slice();
-    const userDataDir = this.getUserDataDir(params);
+    const userDataDir = await this.getUserDataDir(params);
     // prepend args to not interfere with any positional arguments (e.g. url to open)
     if (userDataDir !== undefined) {
       args.unshift(`--user-data-dir=${userDataDir}`);
