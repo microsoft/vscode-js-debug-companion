@@ -64,6 +64,7 @@ export class Session implements Disposable {
   public dispose() {
     if (!this.disposed) {
       this.browserProcess?.dispose();
+      this.socket?.destroy();
       this.disposed = true;
     }
   }

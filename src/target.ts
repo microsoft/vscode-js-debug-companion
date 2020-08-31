@@ -34,7 +34,7 @@ export class PipedTarget implements ITarget {
     }
 
     process.on('error', e => this.errorEmitter.fire(e));
-    process.on('close', () => this.closeEmitter.fire());
+    process.on('exit', () => this.closeEmitter.fire());
   }
 
   public get input() {
