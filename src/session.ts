@@ -64,7 +64,7 @@ export class Session implements Disposable {
   public dispose() {
     if (!this.disposed) {
       this.browserProcess?.dispose();
-      this.socket?.destroy();
+      // the browser process closing will cause the connection to drain and close
       this.disposed = true;
     }
   }

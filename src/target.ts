@@ -18,6 +18,17 @@ export interface ITarget {
   dispose(): Promise<void>;
 }
 
+const waitForExit = async (process: ChildProcess) => {
+  if (process.exitCode) {
+    return;
+  }
+
+  await Promise.race([
+    new Promise(r => process.on('exit', r)),
+    new Promise(r => setTimeout(r, 1000)),
+  ]);
+};
+
 /**
  * A debug target that sends data through the target's stdio streams.
  */
@@ -45,9 +56,9 @@ export class PipedTarget implements ITarget {
     return this.process.stdio[4] as Readable;
   }
 
-  public dispose() {
+  public async dispose() {
+    await waitForExit(this.process);
     this.process.kill();
-    return Promise.resolve();
   }
 }
 
@@ -155,8 +166,9 @@ export class ServerTarget implements ITarget {
     return this.attach.output;
   }
 
-  public dispose() {
+  public async dispose() {
+    this.attach.dispose();
+    await waitForExit(this.process);
     this.process.kill();
-    return this.attach.dispose();
   }
 }
