@@ -116,7 +116,13 @@ export class BrowserSpawner {
       return new PipedTarget(
         spawn(binary, args, {
           detached: process.platform !== 'win32',
-          env: { ELECTRON_RUN_AS_NODE: undefined, ...params.params.env },
+          env: {
+            ...process.env,
+            GDK_PIXBUF_MODULEDIR: undefined,
+            GDK_PIXBUF_MODULE_FILE: undefined,
+            ELECTRON_RUN_AS_NODE: undefined,
+            ...params.params.env,
+          },
           stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
           cwd,
         }),
