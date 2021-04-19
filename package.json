@@ -7,6 +7,9 @@
   "engines": {
     "vscode": "^1.47.0"
   },
+  "workspaceTrust": {
+    "request": "never"
+  },
   "categories": [
     "Other"
   ],
