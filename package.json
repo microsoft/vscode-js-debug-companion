@@ -5,7 +5,7 @@
   "version": "1.0.10",
   "publisher": "ms-vscode",
   "engines": {
-    "vscode": "^1.47.0"
+    "vscode": "^1.55.0"
   },
   "workspaceTrust": {
     "request": "never"
