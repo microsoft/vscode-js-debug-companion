@@ -113,7 +113,7 @@ export class AttachTarget implements ITarget {
     const delimiter = Buffer.alloc(1, 0);
     const r = new PassThrough();
     this.ws.on('message', data =>
-      r.push(Buffer.concat([data instanceof Buffer ? data : Buffer.from(data), delimiter])),
+      r.push(Buffer.concat([data instanceof Buffer ? data : Buffer.from(data as string), delimiter])),
     );
     this.ws.on('close', () => r.push(null));
 

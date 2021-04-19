@@ -13,13 +13,12 @@ module.exports = {
   resolve: {
     extensions: ['.ts', '.tsx', '.js'],
   },
-  optimization: {
-    minimize: false,
-  },
   module: {
     rules: [{ test: /\.ts?$/, loader: 'ts-loader' }],
   },
   externals: {
     vscode: 'commonjs vscode',
+    bufferutil: 'commonjs bufferutil',
+    'utf-8-validate': 'commonjs utf-8-validate',
   },
 };
