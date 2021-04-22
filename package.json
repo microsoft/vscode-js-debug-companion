@@ -24,6 +24,9 @@
     "url": "https://github.com/microsoft/vscode-js-debug-companion/issues"
   },
   "homepage": "https://github.com/microsoft/vscode-js-debug-companion#readme",
+  "capabilities": {
+    "virtualWorkspaces": false
+  }
   "activationEvents": [
     "onCommand:js-debug-companion.launchAndAttach",
     "onCommand:js-debug-companion.kill"
