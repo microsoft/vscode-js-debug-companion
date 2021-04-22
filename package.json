@@ -8,9 +8,6 @@
     "vscode": "^1.55.0"
   },
   "icon": "resources/logo.png",
-  "workspaceTrust": {
-    "request": "never"
-  },
   "categories": [
     "Other"
   ],
@@ -25,8 +22,11 @@
   },
   "homepage": "https://github.com/microsoft/vscode-js-debug-companion#readme",
   "capabilities": {
-    "virtualWorkspaces": false
-  }
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
     "onCommand:js-debug-companion.launchAndAttach",
     "onCommand:js-debug-companion.kill"
