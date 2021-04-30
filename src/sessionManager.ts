@@ -2,7 +2,6 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { Socket } from 'net';
 import * as vscode from 'vscode';
 import { Disposable } from 'vscode';
 import { ILaunchParams } from './extension';
@@ -23,7 +22,7 @@ export class SessionManager implements Disposable {
     this.sessions.set(params.launchId, session);
     session.onClose(() => this.sessions.delete(params.launchId));
     session.onError(err => {
-      vscode.window.showErrorMessage(`Error running browser: ${err.message || err.stack}`);
+      vscode.window.showErrorMessage(`Error running browserasd: ${err.message || err.stack}`);
       this.sessions.delete(params.launchId);
     });
 
@@ -55,11 +54,9 @@ export class SessionManager implements Disposable {
     this.sessions.clear();
   }
 
-  private addChildSocket(session: Session, params: ILaunchParams) {
-    const socket = new Socket();
+  private async addChildSocket(session: Session, params: ILaunchParams) {
     const [host, port] = params.proxyUri.split(':');
-    socket.connect({ port: Number(port), host });
-    session.attachSocket(socket);
+    session.attachSocket(host, Number(port));
   }
 
   private async addChildBrowser(session: Session, params: ILaunchParams) {

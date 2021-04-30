@@ -29,17 +29,8 @@ export class Session implements Disposable {
   /**
    * Attaches the socket looping back up to js-debug.
    */
-  public attachSocket(socket: Socket) {
-    if (this.disposed) {
-      socket.destroy();
-      return;
-    }
-
-    this.socket = socket;
-    socket.on('close', () => this.closeEmitter.fire());
-    socket.on('error', err => this.errorEmitter.fire(err));
-
-    this.tryActivate();
+  public attachSocket(host: string, port: number) {
+    this.attachSocketLoop(host, port, Date.now() + 5000);
   }
 
   /**
@@ -67,6 +58,39 @@ export class Session implements Disposable {
       // the browser process closing will cause the connection to drain and close
       this.disposed = true;
     }
+  }
+
+  /**
+   * It seems there may be some latency before the port becomes available
+   * in WSL -- even though js-debug waits for the `listening` event and the
+   * events round trip though DAP and VS Code. This function will repeatedly
+   * try to connect to the socket.
+   */
+  private attachSocketLoop(host: string, port: number, deadline: number) {
+    if (this.disposed) {
+      return;
+    }
+
+    const socket = new Socket().connect({ port: Number(port), host });
+
+    socket.on('connect', () => {
+      if (this.disposed) {
+        socket.destroy();
+        return;
+      }
+
+      this.socket = socket;
+      this.socket.on('close', () => this.closeEmitter.fire());
+      this.tryActivate();
+    });
+
+    socket.on('error', err => {
+      if (this.socket === socket || Date.now() > deadline) {
+        this.errorEmitter.fire(err);
+      } else {
+        setTimeout(() => this.attachSocketLoop(host, port, deadline), 100);
+      }
+    });
   }
 
   private tryActivate() {
