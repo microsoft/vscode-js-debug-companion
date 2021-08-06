@@ -31,7 +31,7 @@ export class BrowserSpawner {
   constructor(private readonly storagePath: string) {}
 
   private async findBrowserPath(type: 'edge' | 'chrome', runtimeExecutable: string) {
-    if (!isQuality(runtimeExecutable)) {
+    if (runtimeExecutable !== '*' && !isQuality(runtimeExecutable)) {
       return runtimeExecutable;
     }
 
@@ -40,7 +40,11 @@ export class BrowserSpawner {
     }
 
     const available = await this.finders[type].findAll();
-    const resolved = available.find(r => r.quality === runtimeExecutable)?.path;
+    const resolved =
+      runtimeExecutable === '*'
+        ? available.find(r => r.quality === 'stable') ?? available[0]
+        : available.find(r => r.quality === runtimeExecutable);
+
     if (!resolved) {
       if (runtimeExecutable === Quality.Stable && !available.length) {
         throw new UserError(
@@ -63,7 +67,7 @@ export class BrowserSpawner {
       }
     }
 
-    return resolved;
+    return resolved.path;
   }
 
   private async getUserDataDir(params: ILaunchParams) {
