@@ -41,8 +41,7 @@
     "vscode:prepublish": "rimraf out && webpack",
     "compile": "rimraf out && tsc",
     "watch": "rimraf out && tsc --watch",
-    "test": "npm run test:unit && npm run test:lint && npm run test:fmt",
-    "test:unit": "node ./out/test/runTest.js",
+    "test": "npm run compile && npm run test:lint && npm run test:fmt",
     "test:lint": "eslint \"src/**/*.ts\"",
     "test:fmt": "prettier --list-different \"src/**/*.ts\"",
     "fmt": "prettier --write \"src/**/*.ts\"&& npm run test:lint -- --fix"
