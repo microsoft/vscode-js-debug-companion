@@ -20,7 +20,7 @@ export async function retryGetWSEndpoint(
     return await getWSEndpoint(browserURL, cancellationToken);
   } catch (e) {
     if (cancellationToken.isCancellationRequested) {
-      throw new Error(`Could not connect to debug target at ${browserURL}: ${e.message}`);
+      throw new Error(`Could not connect to debug target at ${browserURL}: ${e}`);
     }
 
     await new Promise(r => setTimeout(r, 200));
