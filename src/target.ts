@@ -3,18 +3,17 @@
  *--------------------------------------------------------*/
 
 import { ChildProcess } from 'child_process';
-import split2 from 'split2';
-import { PassThrough, Readable, Writable } from 'stream';
+import split from 'split2';
 import { CancellationTokenSource, Event, EventEmitter } from 'vscode';
 import WebSocket from 'ws';
 import { retryGetWSEndpoint } from './getWsEndpoint';
 
 export interface ITarget {
-  readonly input: Writable;
-  readonly output: Readable;
+  readonly onMessage: Event<WebSocket.RawData>;
   readonly onError: Event<Error>;
   readonly onClose: Event<void>;
 
+  send(message: WebSocket.RawData): void;
   dispose(): Promise<void>;
 }
 
@@ -35,9 +34,11 @@ const waitForExit = async (process: ChildProcess) => {
 export class PipedTarget implements ITarget {
   private errorEmitter = new EventEmitter<Error>();
   private closeEmitter = new EventEmitter<void>();
+  private messageEmitter = new EventEmitter<WebSocket.RawData>();
 
   public readonly onError = this.errorEmitter.event;
   public readonly onClose = this.closeEmitter.event;
+  public readonly onMessage = this.messageEmitter.event;
 
   constructor(private readonly process: ChildProcess) {
     if (this.process.stdio.length < 5) {
@@ -46,14 +47,26 @@ export class PipedTarget implements ITarget {
 
     process.on('error', e => this.errorEmitter.fire(e));
     process.on('exit', () => this.closeEmitter.fire());
+
+    (process.stdio[4] as NodeJS.ReadableStream)
+      .pipe(split('\0'))
+      .on('data', data => this.messageEmitter.fire(data))
+      .resume();
   }
 
-  public get input() {
-    return this.process.stdio[3] as Writable;
-  }
+  public send(message: WebSocket.RawData): void {
+    const w = this.process.stdio[3] as NodeJS.WritableStream;
+    if (message instanceof Uint8Array) {
+      w.write(message);
+    } else if (message instanceof ArrayBuffer) {
+      w.write(new Uint8Array(message));
+    } else {
+      for (const chunk of message) {
+        w.write(chunk);
+      }
+    }
 
-  public get output() {
-    return this.process.stdio[4] as Readable;
+    w.write('\0');
   }
 
   public async dispose() {
@@ -68,9 +81,11 @@ export class PipedTarget implements ITarget {
 export class AttachTarget implements ITarget {
   private errorEmitter = new EventEmitter<Error>();
   private closeEmitter = new EventEmitter<void>();
+  private messageEmitter = new EventEmitter<WebSocket.RawData>();
 
   public readonly onError = this.errorEmitter.event;
   public readonly onClose = this.closeEmitter.event;
+  public readonly onMessage = this.messageEmitter.event;
 
   public static async create(host: string, port: number) {
     const cts = new CancellationTokenSource();
@@ -93,33 +108,11 @@ export class AttachTarget implements ITarget {
   protected constructor(private readonly ws: WebSocket) {
     ws.on('error', evt => this.errorEmitter.fire(evt));
     ws.on('close', () => this.closeEmitter.fire());
+    ws.on('message', m => this.messageEmitter.fire(m));
   }
 
-  public get input() {
-    const s2 = split2('\0');
-
-    s2.pipe(
-      new Writable({
-        write: (chunk, _encoding, next) => {
-          this.ws.send(chunk.toString(), next);
-        },
-      }),
-    );
-
-    return s2;
-  }
-
-  public get output() {
-    const delimiter = Buffer.alloc(1, 0);
-    const r = new PassThrough();
-    this.ws.on('message', data =>
-      r.push(
-        Buffer.concat([data instanceof Buffer ? data : Buffer.from(data as string), delimiter]),
-      ),
-    );
-    this.ws.on('close', () => r.push(null));
-
-    return r;
+  public send(message: WebSocket.RawData): void {
+    this.ws.send(message);
   }
 
   public async dispose() {
@@ -137,9 +130,11 @@ export class AttachTarget implements ITarget {
 export class ServerTarget implements ITarget {
   private errorEmitter = new EventEmitter<Error>();
   private closeEmitter = new EventEmitter<void>();
+  private messageEmitter = new EventEmitter<WebSocket.RawData>();
 
   public readonly onError = this.errorEmitter.event;
   public readonly onClose = this.closeEmitter.event;
+  public readonly onMessage = this.messageEmitter.event;
 
   public static async create(child: ChildProcess, port: number) {
     const cts = new CancellationTokenSource();
@@ -158,14 +153,11 @@ export class ServerTarget implements ITarget {
     process.on('close', () => this.closeEmitter.fire());
     attach.onError(err => this.errorEmitter.fire(err));
     attach.onClose(() => this.closeEmitter.fire());
+    attach.onMessage(evt => this.messageEmitter.fire(evt));
   }
 
-  public get input() {
-    return this.attach.input;
-  }
-
-  public get output() {
-    return this.attach.output;
+  public send(message: WebSocket.RawData): void {
+    this.attach.send(message);
   }
 
   public async dispose() {

@@ -2,10 +2,34 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { Socket } from 'net';
+import { URL } from 'url';
 import { Disposable, EventEmitter } from 'vscode';
-import { createGunzip, createGzip } from 'zlib';
+import WebSocket from 'ws';
 import { ITarget } from './target';
+
+class MessageQueue<T> {
+  private qOrFn: T[] | ((value: T) => void) = [];
+
+  public push(value: T) {
+    if (typeof this.qOrFn === 'function') {
+      this.qOrFn(value);
+    } else {
+      this.qOrFn.push(value);
+    }
+  }
+
+  public connect(fn: (value: T) => void) {
+    if (typeof this.qOrFn === 'function') {
+      throw new Error('Already connected');
+    }
+
+    const prev = this.qOrFn;
+    this.qOrFn = fn;
+    for (const queued of prev) {
+      fn(queued);
+    }
+  }
+}
 
 /**
  * The Session manages the lifecycle for a single top-level browser debug sesssion.
@@ -19,7 +43,10 @@ export class Session implements Disposable {
 
   private disposed = false;
   private browserProcess?: ITarget;
-  private socket?: Socket;
+  private socket?: WebSocket;
+
+  private fromSocketQueue = new MessageQueue<WebSocket.RawData>();
+  private fromBrowserQueue = new MessageQueue<WebSocket.RawData>();
 
   constructor() {
     this.onClose(() => this.dispose());
@@ -29,8 +56,9 @@ export class Session implements Disposable {
   /**
    * Attaches the socket looping back up to js-debug.
    */
-  public attachSocket(host: string, port: number) {
-    this.attachSocketLoop(host, port, Date.now() + 5000);
+  public attachSocket(host: string, port: number, path: string) {
+    const url = new URL(`ws://${host}:${port}${path}`);
+    this.attachSocketLoop(url, Date.now() + 5000);
   }
 
   /**
@@ -45,8 +73,8 @@ export class Session implements Disposable {
     this.browserProcess = target;
     target.onClose(() => this.closeEmitter.fire());
     target.onError(err => this.errorEmitter.fire(err));
-
-    this.tryActivate();
+    target.onMessage(msg => this.fromBrowserQueue.push(msg));
+    this.fromSocketQueue.connect(data => target.send(data));
   }
 
   /**
@@ -55,7 +83,7 @@ export class Session implements Disposable {
   public dispose() {
     if (!this.disposed) {
       this.browserProcess?.dispose();
-      // the browser process closing will cause the connection to drain and close
+      this.socket?.close();
       this.disposed = true;
     }
   }
@@ -66,47 +94,31 @@ export class Session implements Disposable {
    * events round trip though DAP and VS Code. This function will repeatedly
    * try to connect to the socket.
    */
-  private attachSocketLoop(host: string, port: number, deadline: number) {
+  private attachSocketLoop(url: URL, deadline: number) {
     if (this.disposed) {
       return;
     }
 
-    const socket = new Socket().connect({ port: Number(port), host });
+    const socket = new WebSocket(url, { perMessageDeflate: true });
 
-    socket.on('connect', () => {
+    socket.on('open', () => {
       if (this.disposed) {
-        socket.destroy();
+        socket.close();
         return;
       }
 
       this.socket = socket;
       this.socket.on('close', () => this.closeEmitter.fire());
-      this.tryActivate();
+      this.socket.on('message', data => this.fromSocketQueue.push(data));
+      this.fromBrowserQueue.connect(data => socket.send(data));
     });
 
     socket.on('error', err => {
       if (this.socket === socket || Date.now() > deadline) {
         this.errorEmitter.fire(err);
       } else {
-        setTimeout(() => this.attachSocketLoop(host, port, deadline), 100);
+        setTimeout(() => this.attachSocketLoop(url, deadline), 100);
       }
     });
-  }
-
-  private tryActivate() {
-    if (!this.browserProcess || !this.socket) {
-      return;
-    }
-
-    const compressor = createGzip();
-    const cpOut = this.browserProcess.output;
-    cpOut.pipe(compressor).pipe(this.socket).resume();
-    cpOut.on('data', (data: Buffer) => {
-      if (data.includes(0)) {
-        compressor.flush(2 /* Z_SYNC_FLUSH */);
-      }
-    });
-
-    this.socket.pipe(createGunzip()).pipe(this.browserProcess.input);
   }
 }

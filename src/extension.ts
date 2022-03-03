@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 
 export interface ILaunchParams {
   type: 'chrome' | 'edge';
+  path: string;
   proxyUri: string;
   launchId: number;
   browserArgs: string[];
