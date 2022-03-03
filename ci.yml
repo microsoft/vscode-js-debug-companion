@@ -28,5 +28,5 @@ extends:
       - script: npm install
         displayName: Install dependencies
 
-      - script: yarn run package-web
+      - script: npm run vscode:prepublish
         displayName: Compile
