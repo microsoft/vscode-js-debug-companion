@@ -30,7 +30,7 @@ export interface ILaunchParams {
 let manager: SessionManager | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  manager = new SessionManager(new BrowserSpawner(context.storagePath ?? tmpdir()));
+  manager = new SessionManager(new BrowserSpawner(context.storageUri?.fsPath ?? tmpdir(), context));
 
   context.subscriptions.push(
     vscode.commands.registerCommand('js-debug-companion.launchAndAttach', params => {

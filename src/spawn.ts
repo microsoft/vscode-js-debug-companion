@@ -6,9 +6,12 @@ import { spawn } from 'child_process';
 import execa from 'execa';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import * as vscode from 'vscode';
 import {
   ChromeBrowserFinder,
   EdgeBrowserFinder,
+  IBrowserFinder,
+  IExecutable,
   isQuality,
   Quality,
 } from 'vscode-js-debug-browsers';
@@ -21,6 +24,7 @@ import { PipedTarget, ServerTarget } from './target';
 const localize = nls.loadMessageBundle();
 const debugPortPrefix = '--remote-debugging-port=';
 const debugPipeArg = '--remote-debugging-port=';
+const availableBrowserKey = 'availableBrowsers_';
 
 export class BrowserSpawner {
   private readonly finders = {
@@ -28,7 +32,10 @@ export class BrowserSpawner {
     chrome: new ChromeBrowserFinder(process.env, fs, execa),
   };
 
-  constructor(private readonly storagePath: string) {}
+  constructor(
+    private readonly storagePath: string,
+    private readonly context: vscode.ExtensionContext,
+  ) {}
 
   private async findBrowserPath(type: 'edge' | 'chrome', runtimeExecutable: string) {
     if (runtimeExecutable !== '*' && !isQuality(runtimeExecutable)) {
@@ -39,13 +46,18 @@ export class BrowserSpawner {
       throw new UserError(`Browser type "${type}" is not supported.`);
     }
 
-    const available = await this.finders[type].findAll();
+    const available =
+      this.context.globalState.get<IExecutable[]>(availableBrowserKey + type) ||
+      (await this.finders[type].findAll());
+
     const resolved =
       runtimeExecutable === '*'
         ? available.find(r => r.quality === 'stable') ?? available[0]
         : available.find(r => r.quality === runtimeExecutable);
 
     if (!resolved) {
+      await this.context.globalState.update(availableBrowserKey + type, undefined);
+
       if (runtimeExecutable === Quality.Stable && !available.length) {
         throw new UserError(
           localize(
@@ -67,7 +79,26 @@ export class BrowserSpawner {
       }
     }
 
+    await this.context.globalState.update(availableBrowserKey + type, available);
+
     return resolved.path;
+  }
+
+  protected async findBrowserByExe(
+    finder: IBrowserFinder,
+    executablePath: string,
+  ): Promise<string | undefined> {
+    if (executablePath === '*') {
+      // try to find the stable browser, but if that fails just get any browser
+      // that's available on the system
+      const found =
+        (await finder.findWhere(r => r.quality === Quality.Stable)) || (await finder.findAll())[0];
+      return found?.path;
+    } else if (isQuality(executablePath)) {
+      return (await finder.findWhere(r => r.quality === executablePath))?.path;
+    } else {
+      return executablePath;
+    }
   }
 
   private async getUserDataDir(params: ILaunchParams) {
