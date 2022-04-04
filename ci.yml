@@ -11,7 +11,6 @@ resources:
     - repository: templates
       type: github
       name: microsoft/vscode-engineering
-      ref: gh-releases
       endpoint: Monaco
 
 parameters:
@@ -24,8 +23,8 @@ extends:
   template: azure-pipelines/extension/stable.yml@templates
   parameters:
     publishExtension: ${{ parameters.publishExtension }}
-    createGitHubRelease: true
-    createGitHubReleaseChangelog: true
+    ghCreateRelease: true
+    ghReleaseAddChangeLog: true
     buildSteps:
       - script: npm install
         displayName: Install dependencies
