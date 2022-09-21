@@ -31,3 +31,13 @@ extends:
 
       - script: npm run vscode:prepublish
         displayName: Compile
+
+      - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+        displayName: Generate SBOM (client)
+        inputs:
+          BuildDropPath: $(Build.SourcesDirectory)
+          PackageName: "Visual Studio Code: JS Debug Companion"
+
+      - publish: $(Build.SourcesDirectory)/_manifest
+        displayName: Publish SBOM (client)
+        artifact: js_debug_companion_sbom
