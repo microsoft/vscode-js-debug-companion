@@ -22,7 +22,7 @@ export class SessionManager implements Disposable {
     this.sessions.set(params.launchId, session);
     session.onClose(() => this.sessions.delete(params.launchId));
     session.onError(err => {
-      vscode.window.showErrorMessage(`Error running browserasd: ${err.message || err.stack}`);
+      vscode.window.showErrorMessage(`Error running browser: ${err.message || err.stack}`);
       this.sessions.delete(params.launchId);
     });
 
@@ -56,7 +56,7 @@ export class SessionManager implements Disposable {
 
   private async addChildSocket(session: Session, params: ILaunchParams) {
     const [host, port] = params.proxyUri.split(':');
-    session.attachSocket(host, Number(port), params.path);
+    session.attachSocket(host, Number(port), params.path, params.wslInfo);
   }
 
   private async addChildBrowser(session: Session, params: ILaunchParams) {

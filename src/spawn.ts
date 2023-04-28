@@ -15,13 +15,11 @@ import {
   isQuality,
   Quality,
 } from 'vscode-js-debug-browsers';
-import * as nls from 'vscode-nls';
 import { UserError } from './errors';
 import { ILaunchParams } from './extension';
 import { exists } from './fs';
 import { PipedTarget, ServerTarget } from './target';
 
-const localize = nls.loadMessageBundle();
 const debugPortPrefix = '--remote-debugging-port=';
 const debugPipeArg = '--remote-debugging-port=';
 const availableBrowserKey = 'availableBrowsers_';
@@ -60,16 +58,14 @@ export class BrowserSpawner {
 
       if (runtimeExecutable === Quality.Stable && !available.length) {
         throw new UserError(
-          localize(
-            'noBrowserInstallFound',
+          vscode.l10n.t(
             'Unable to find a {0} installation on your system. Try installing it, or providing an absolute path to the browser in the "runtimeExecutable" in your launch.json.',
             type,
           ),
         );
       } else {
         throw new UserError(
-          localize(
-            'browserVersionNotFound',
+          vscode.l10n.t(
             'Unable to find {0} version {1}. Available auto-discovered versions are: {2}. You can set the "runtimeExecutable" in your launch.json to one of these, or provide an absolute path to the browser executable.',
             type,
             runtimeExecutable,

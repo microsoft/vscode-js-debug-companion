@@ -7,12 +7,24 @@ import { SessionManager } from './sessionManager';
 import { BrowserSpawner } from './spawn';
 import { tmpdir } from 'os';
 
+/**
+ * Info about the WSL distro, if any. A common issue across scenarios is WSL
+ * ports randomly not getting forwarded. Instead, in WSL, we can try to make
+ * a connection via stdin/stdout on the nested WSL instance.
+ */
+export interface IWslInfo {
+  execPath: string,
+  distro: string,
+  user: string,
+}
+
 export interface ILaunchParams {
   type: 'chrome' | 'edge';
   path: string;
   proxyUri: string;
   launchId: number;
   browserArgs: string[];
+  wslInfo?: IWslInfo;
   attach?: {
     host: string;
     port: number;
