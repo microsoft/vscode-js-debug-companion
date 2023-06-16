@@ -2,10 +2,10 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
+import { tmpdir } from 'os';
 import * as vscode from 'vscode';
 import { SessionManager } from './sessionManager';
 import { BrowserSpawner } from './spawn';
-import { tmpdir } from 'os';
 
 /**
  * Info about the WSL distro, if any. A common issue across scenarios is WSL
@@ -42,7 +42,8 @@ export interface ILaunchParams {
 let manager: SessionManager | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  manager = new SessionManager(new BrowserSpawner(context.storageUri?.fsPath ?? tmpdir(), context));
+  const browserSpawner = new BrowserSpawner(context.storageUri?.fsPath ?? tmpdir(), context);
+  manager = new SessionManager(browserSpawner);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('js-debug-companion.launchAndAttach', params => {
@@ -50,6 +51,9 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('js-debug-companion.kill', ({ launchId }) => {
       manager?.destroy(launchId);
+    }),
+    vscode.commands.registerCommand('js-debug-companion.launch', ({ browserType: type, URL: url }) => {
+      browserSpawner.launchBrowserOnly(type, url);
     }),
   );
 }
