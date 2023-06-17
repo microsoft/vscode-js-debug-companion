@@ -130,6 +130,8 @@ export class BrowserSpawner {
     spawn(binary, [url], {
       detached: true,
       stdio: 'ignore'
+    }).on('error', err => {
+      vscode.window.showErrorMessage(`Error running browser: ${err.message || err.stack}`);
     });
   }
 
