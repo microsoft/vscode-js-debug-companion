@@ -2,19 +2,21 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
+
+import {
+  ChromeBrowserFinder,
+  EdgeBrowserFinder,
+  FirefoxBrowserFinder,
+  IBrowserFinder,
+  IExecutable,
+  isQuality,
+  Quality,
+} from '@vscode/js-debug-browsers';
 import { spawn } from 'child_process';
 import execa from 'execa';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import * as vscode from 'vscode';
-import {
-  ChromeBrowserFinder,
-  EdgeBrowserFinder,
-  IBrowserFinder,
-  IExecutable,
-  isQuality,
-  Quality,
-} from 'vscode-js-debug-browsers';
 import { UserError } from './errors';
 import { ILaunchParams } from './extension';
 import { exists } from './fs';
@@ -28,6 +30,7 @@ export class BrowserSpawner {
   private readonly finders = {
     edge: new EdgeBrowserFinder(process.env, fs, execa),
     chrome: new ChromeBrowserFinder(process.env, fs, execa),
+    firefox: new FirefoxBrowserFinder(process.env, fs, execa),
   };
 
   constructor(
@@ -35,7 +38,7 @@ export class BrowserSpawner {
     private readonly context: vscode.ExtensionContext,
   ) {}
 
-  private async findBrowserPath(type: 'edge' | 'chrome', runtimeExecutable: string) {
+  private async findBrowserPath(type: 'edge' | 'chrome' | 'firefox', runtimeExecutable: string) {
     if (runtimeExecutable !== '*' && !isQuality(runtimeExecutable)) {
       return runtimeExecutable;
     }
@@ -117,6 +120,19 @@ export class BrowserSpawner {
     }
 
     return requested;
+  }
+
+  /**
+   * Launches a browser using a specific browser type and url.
+   */
+  public async launchBrowserOnly(type: 'edge' | 'chrome' | 'firefox', url: string) {
+    const binary = await this.findBrowserPath(type, "*");
+    spawn(binary, [url], {
+      detached: true,
+      stdio: 'ignore'
+    }).on('error', err => {
+      vscode.window.showErrorMessage(`Error running browser: ${err.message || err.stack}`);
+    });
   }
 
   /**
