@@ -2,7 +2,6 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-
 import {
   ChromeBrowserFinder,
   EdgeBrowserFinder,
@@ -10,7 +9,6 @@ import {
   IBrowserFinder,
   IExecutable,
   isQuality,
-  Quality,
 } from '@vscode/js-debug-browsers';
 import { spawn } from 'child_process';
 import execa from 'execa';
@@ -59,7 +57,7 @@ export class BrowserSpawner {
     if (!resolved) {
       await this.context.globalState.update(availableBrowserKey + type, undefined);
 
-      if (runtimeExecutable === Quality.Stable && !available.length) {
+      if (runtimeExecutable === /* Quality.Stable */ 'stable' && !available.length) {
         throw new UserError(
           vscode.l10n.t(
             'Unable to find a {0} installation on your system. Try installing it, or providing an absolute path to the browser in the "runtimeExecutable" in your launch.json.',
@@ -91,7 +89,8 @@ export class BrowserSpawner {
       // try to find the stable browser, but if that fails just get any browser
       // that's available on the system
       const found =
-        (await finder.findWhere(r => r.quality === Quality.Stable)) || (await finder.findAll())[0];
+        (await finder.findWhere(r => r.quality === /* Quality.Stable */ 'stable')) ||
+        (await finder.findAll())[0];
       return found?.path;
     } else if (isQuality(executablePath)) {
       return (await finder.findWhere(r => r.quality === executablePath))?.path;
@@ -126,10 +125,10 @@ export class BrowserSpawner {
    * Launches a browser using a specific browser type and url.
    */
   public async launchBrowserOnly(type: 'edge' | 'chrome' | 'firefox', url: string) {
-    const binary = await this.findBrowserPath(type, "*");
+    const binary = await this.findBrowserPath(type, '*');
     spawn(binary, [url], {
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
     }).on('error', err => {
       vscode.window.showErrorMessage(`Error running browser: ${err.message || err.stack}`);
     });
