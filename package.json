@@ -75,6 +75,6 @@
     "duplexer3": "^1.0.0",
     "split2": "^4.2.0",
     "@vscode/js-debug-browsers": "^1.1.0",
-    "ws": "^8.13.0"
+    "ws": "^8.17.1"
   }
 }
