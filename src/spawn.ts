@@ -41,7 +41,7 @@ export class BrowserSpawner {
       return runtimeExecutable;
     }
 
-    if (!this.finders.hasOwnProperty(type)) {
+    if (!(type in this.finders)) {
       throw new UserError(`Browser type "${type}" is not supported.`);
     }
 
