@@ -12,6 +12,7 @@ const ctx = esbuild.context({
   minify,
   platform: 'node',
   outdir: 'out',
+  packages: 'bundle',
 });
 
 ctx
