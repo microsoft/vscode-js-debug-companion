@@ -21,7 +21,7 @@ import { exists } from './fs';
 import { PipedTarget, ServerTarget } from './target';
 
 const debugPortPrefix = '--remote-debugging-port=';
-const debugPipeArg = '--remote-debugging-port=';
+const debugPipeArg = '--remote-debugging-pipe';
 const availableBrowserKey = 'availableBrowsers_';
 
 export class BrowserSpawner {
