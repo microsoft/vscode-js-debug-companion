@@ -9,9 +9,25 @@ import { Socket } from 'net';
 import { Duplex } from 'stream';
 import { URL } from 'url';
 import { Disposable, EventEmitter } from 'vscode';
-import WebSocket from 'ws';
 import { IWslInfo } from './extension';
-import { ITarget } from './target';
+import { ITarget, ITargetMessage } from './target';
+
+type SocketEvent = { error?: Error };
+type MessageEvent = { data: unknown };
+type ICompanionWebSocket = {
+  binaryType: 'blob' | 'arraybuffer';
+  addEventListener(type: string, listener: (...args: unknown[]) => void): void;
+  send(data: string | ArrayBufferLike | ArrayBufferView): void;
+  close(): void;
+};
+
+type ICompanionWebSocketConstructor = new (
+  url: string | URL,
+  protocols?: string | string[] | Record<string, unknown>,
+) => ICompanionWebSocket;
+
+const WebSocket = (globalThis as unknown as { WebSocket: ICompanionWebSocketConstructor })
+  .WebSocket;
 
 class MessageQueue<T> {
   private qOrFn: T[] | ((value: T) => void) = [];
@@ -49,10 +65,10 @@ export class Session implements Disposable {
 
   private disposed = false;
   private browserProcess?: ITarget;
-  private socket?: WebSocket;
+  private socket?: ICompanionWebSocket;
 
-  private fromSocketQueue = new MessageQueue<WebSocket.RawData>();
-  private fromBrowserQueue = new MessageQueue<WebSocket.RawData>();
+  private fromSocketQueue = new MessageQueue<ITargetMessage>();
+  private fromBrowserQueue = new MessageQueue<ITargetMessage>();
 
   constructor() {
     this.onClose(() => this.dispose());
@@ -134,6 +150,7 @@ export class Session implements Disposable {
 
     // intentionally don't perMessageDeflate here, since we're local in wsl
     const ws = new WebSocket(url, { agent });
+    ws.binaryType = 'arraybuffer';
     this.setupSocket(ws, url, deadline);
   }
 
@@ -143,23 +160,29 @@ export class Session implements Disposable {
     }
 
     const socket = new WebSocket(url, { perMessageDeflate: true });
+    socket.binaryType = 'arraybuffer';
     this.setupSocket(socket, url, deadline);
   }
 
-  private setupSocket(socket: WebSocket, url: URL, deadline: number) {
-    socket.on('open', () => {
+  private setupSocket(socket: ICompanionWebSocket, url: URL, deadline: number) {
+    socket.addEventListener('open', () => {
       if (this.disposed) {
         socket.close();
         return;
       }
 
       this.socket = socket;
-      this.socket.on('close', () => this.closeEmitter.fire());
-      this.socket.on('message', data => this.fromSocketQueue.push(data));
+      this.socket.addEventListener('close', () => this.closeEmitter.fire());
+      this.socket.addEventListener('message', (event: unknown) =>
+        this.fromSocketQueue.push(normalizeMessage((event as MessageEvent).data)),
+      );
       this.fromBrowserQueue.connect(data => socket.send(data));
     });
 
-    socket.on('error', err => {
+    socket.addEventListener('error', (event: unknown) => {
+      const err =
+        (event as SocketEvent).error ??
+        new Error(`Error connecting websocket to ${url.toString()}`);
       if (this.socket === socket || Date.now() > deadline) {
         this.errorEmitter.fire(err);
       } else {
@@ -199,4 +222,20 @@ const makeNetSocketFromDuplexStream = (stream: Duplex): Socket => {
   };
 
   return Object.assign(stream, patched) as Socket;
+};
+
+const normalizeMessage = (message: unknown): ITargetMessage => {
+  if (
+    typeof message === 'string' ||
+    message instanceof Uint8Array ||
+    message instanceof ArrayBuffer
+  ) {
+    return message;
+  }
+
+  if (ArrayBuffer.isView(message)) {
+    return new Uint8Array(message.buffer, message.byteOffset, message.byteLength);
+  }
+
+  return String(message);
 };

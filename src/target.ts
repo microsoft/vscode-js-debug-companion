@@ -5,15 +5,32 @@
 import { ChildProcess } from 'child_process';
 import split from 'split2';
 import { CancellationTokenSource, Event, EventEmitter } from 'vscode';
-import WebSocket from 'ws';
 import { retryGetWSEndpoint } from './getWsEndpoint';
 
+export type ITargetMessage = Buffer | ArrayBuffer | Uint8Array | string;
+type SocketEvent = { error?: Error };
+type MessageEvent = { data: unknown };
+type ICompanionWebSocket = {
+  binaryType: 'blob' | 'arraybuffer';
+  addEventListener(type: string, listener: (...args: unknown[]) => void): void;
+  send(data: string | ArrayBufferLike | ArrayBufferView): void;
+  close(): void;
+};
+
+type ICompanionWebSocketConstructor = new (
+  url: string | URL,
+  protocols?: string | string[] | Record<string, unknown>,
+) => ICompanionWebSocket;
+
+const WebSocket = (globalThis as unknown as { WebSocket: ICompanionWebSocketConstructor })
+  .WebSocket;
+
 export interface ITarget {
-  readonly onMessage: Event<WebSocket.RawData>;
+  readonly onMessage: Event<ITargetMessage>;
   readonly onError: Event<Error>;
   readonly onClose: Event<void>;
 
-  send(message: WebSocket.RawData): void;
+  send(message: ITargetMessage): void;
   dispose(): Promise<void>;
 }
 
@@ -34,7 +51,7 @@ const waitForExit = async (process: ChildProcess) => {
 export class PipedTarget implements ITarget {
   private errorEmitter = new EventEmitter<Error>();
   private closeEmitter = new EventEmitter<void>();
-  private messageEmitter = new EventEmitter<WebSocket.RawData>();
+  private messageEmitter = new EventEmitter<ITargetMessage>();
 
   public readonly onError = this.errorEmitter.event;
   public readonly onClose = this.closeEmitter.event;
@@ -54,16 +71,14 @@ export class PipedTarget implements ITarget {
       .resume();
   }
 
-  public send(message: WebSocket.RawData): void {
+  public send(message: ITargetMessage): void {
     const w = this.process.stdio[3] as NodeJS.WritableStream;
     if (message instanceof Uint8Array) {
       w.write(message);
     } else if (message instanceof ArrayBuffer) {
       w.write(new Uint8Array(message));
     } else {
-      for (const chunk of message) {
-        w.write(chunk);
-      }
+      w.write(message);
     }
 
     w.write('\0');
@@ -81,7 +96,7 @@ export class PipedTarget implements ITarget {
 export class AttachTarget implements ITarget {
   private errorEmitter = new EventEmitter<Error>();
   private closeEmitter = new EventEmitter<void>();
-  private messageEmitter = new EventEmitter<WebSocket.RawData>();
+  private messageEmitter = new EventEmitter<ITargetMessage>();
 
   public readonly onError = this.errorEmitter.event;
   public readonly onClose = this.closeEmitter.event;
@@ -92,32 +107,39 @@ export class AttachTarget implements ITarget {
     setTimeout(() => cts.cancel(), 10 * 1000);
 
     const endpoint = await retryGetWSEndpoint(`http://${host}:${port}`, cts.token);
-    const ws = new WebSocket(endpoint, [], {
+    const ws = new WebSocket(endpoint, {
       headers: { host: 'localhost' },
       perMessageDeflate: false,
       maxPayload: 256 * 1024 * 1024,
       followRedirects: true,
     });
+    ws.binaryType = 'arraybuffer';
 
     return await new Promise<ITarget>((resolve, reject) => {
       ws.addEventListener('open', () => resolve(new AttachTarget(ws)));
-      ws.addEventListener('error', errorEvent => reject(errorEvent.error));
+      ws.addEventListener('error', (errorEvent: unknown) =>
+        reject((errorEvent as SocketEvent).error ?? new Error('WebSocket error')),
+      );
     });
   }
 
-  protected constructor(private readonly ws: WebSocket) {
-    ws.on('error', evt => this.errorEmitter.fire(evt));
-    ws.on('close', () => this.closeEmitter.fire());
-    ws.on('message', m => this.messageEmitter.fire(m));
+  protected constructor(private readonly ws: ICompanionWebSocket) {
+    ws.addEventListener('error', (evt: unknown) =>
+      this.errorEmitter.fire((evt as SocketEvent).error ?? new Error('WebSocket error')),
+    );
+    ws.addEventListener('close', () => this.closeEmitter.fire());
+    ws.addEventListener('message', (event: unknown) =>
+      this.messageEmitter.fire(normalizeMessage((event as MessageEvent).data)),
+    );
   }
 
-  public send(message: WebSocket.RawData): void {
-    this.ws.send(message.toString());
+  public send(message: ITargetMessage): void {
+    this.ws.send(message);
   }
 
   public async dispose() {
     await new Promise(r => {
-      this.ws.on('close', r);
+      this.ws.addEventListener('close', () => r(undefined));
       this.ws.close();
     });
   }
@@ -130,7 +152,7 @@ export class AttachTarget implements ITarget {
 export class ServerTarget implements ITarget {
   private errorEmitter = new EventEmitter<Error>();
   private closeEmitter = new EventEmitter<void>();
-  private messageEmitter = new EventEmitter<WebSocket.RawData>();
+  private messageEmitter = new EventEmitter<ITargetMessage>();
 
   public readonly onError = this.errorEmitter.event;
   public readonly onClose = this.closeEmitter.event;
@@ -148,7 +170,10 @@ export class ServerTarget implements ITarget {
     }
   }
 
-  protected constructor(private readonly process: ChildProcess, private readonly attach: ITarget) {
+  protected constructor(
+    private readonly process: ChildProcess,
+    private readonly attach: ITarget,
+  ) {
     process.on('error', e => this.errorEmitter.fire(e));
     process.on('close', () => this.closeEmitter.fire());
     attach.onError(err => this.errorEmitter.fire(err));
@@ -156,7 +181,7 @@ export class ServerTarget implements ITarget {
     attach.onMessage(evt => this.messageEmitter.fire(evt));
   }
 
-  public send(message: WebSocket.RawData): void {
+  public send(message: ITargetMessage): void {
     this.attach.send(message);
   }
 
@@ -166,3 +191,19 @@ export class ServerTarget implements ITarget {
     this.process.kill();
   }
 }
+
+const normalizeMessage = (message: unknown): ITargetMessage => {
+  if (
+    typeof message === 'string' ||
+    message instanceof Uint8Array ||
+    message instanceof ArrayBuffer
+  ) {
+    return message;
+  }
+
+  if (ArrayBuffer.isView(message)) {
+    return new Uint8Array(message.buffer, message.byteOffset, message.byteLength);
+  }
+
+  return String(message);
+};

@@ -63,7 +63,6 @@
     "@types/node": "^20.14.9",
     "@types/split2": "^4.2.3",
     "@types/vscode": "^1.90.0",
-    "@types/ws": "^8.5.10",
     "esbuild": "^0.25.0",
     "eslint": "^8.57.0",
     "prettier": "^3.3.2",
@@ -76,7 +75,6 @@
     "default-browser": "^5.2.1",
     "duplexer3": "^1.0.0",
     "execa": "^5.1.1",
-    "split2": "^4.2.0",
-    "ws": "^8.20.1"
+    "split2": "^4.2.0"
   }
 }
