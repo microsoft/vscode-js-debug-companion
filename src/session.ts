@@ -4,7 +4,6 @@
 
 import { URL } from 'url';
 import { Disposable, EventEmitter } from 'vscode';
-import { IWslInfo } from './extension';
 import { ITarget, ITargetMessage, normalizeMessage } from './target';
 
 type SocketEvent = { error?: Error };
@@ -73,10 +72,9 @@ export class Session implements Disposable {
   /**
    * Attaches the socket looping back up to js-debug.
    */
-  public attachSocket(host: string, port: number, path: string, wslInfo?: IWslInfo) {
+  public attachSocket(host: string, port: number, path: string) {
     const url = new URL(`ws://${host}:${port}${path}`);
     const deadline = Date.now() + 5000;
-    void wslInfo;
     this.attachSocketLoop(url, deadline);
   }
 
