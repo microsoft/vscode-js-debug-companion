@@ -60,7 +60,7 @@
     "@types/duplexer3": "^0.1.4",
     "@types/eslint__js": "^8.42.3",
     "@types/mocha": "^10.0.7",
-    "@types/node": "^20.14.9",
+    "@types/node": "^22.19.19",
     "@types/split2": "^4.2.3",
     "@types/vscode": "^1.90.0",
     "esbuild": "^0.25.0",
