@@ -3,25 +3,9 @@
  *--------------------------------------------------------*/
 
 import { URL } from 'url';
+import type { ErrorEvent as UndiciErrorEvent, WebSocket as UndiciWebSocket } from 'undici-types';
 import { Disposable, EventEmitter } from 'vscode';
 import { ITarget, ITargetMessage, normalizeMessage } from './target';
-
-type SocketEvent = { error?: Error };
-type MessageEvent = { data: unknown };
-type ICompanionWebSocket = {
-  binaryType: 'blob' | 'arraybuffer';
-  addEventListener(type: string, listener: (...args: unknown[]) => void): void;
-  send(data: string | ArrayBufferLike | ArrayBufferView): void;
-  close(): void;
-};
-
-type ICompanionWebSocketConstructor = new (
-  url: string | URL,
-  protocols?: string | string[],
-) => ICompanionWebSocket;
-
-const WebSocket = (globalThis as unknown as { WebSocket: ICompanionWebSocketConstructor })
-  .WebSocket;
 
 class MessageQueue<T> {
   private qOrFn: T[] | ((value: T) => void) = [];
@@ -59,7 +43,7 @@ export class Session implements Disposable {
 
   private disposed = false;
   private browserProcess?: ITarget;
-  private socket?: ICompanionWebSocket;
+  private socket?: UndiciWebSocket;
 
   private fromSocketQueue = new MessageQueue<ITargetMessage>();
   private fromBrowserQueue = new MessageQueue<ITargetMessage>();
@@ -110,12 +94,12 @@ export class Session implements Disposable {
       return;
     }
 
-    const socket = new WebSocket(url);
+    const socket = new globalThis.WebSocket(url) as unknown as UndiciWebSocket;
     socket.binaryType = 'arraybuffer';
     this.setupSocket(socket, url, deadline);
   }
 
-  private setupSocket(socket: ICompanionWebSocket, url: URL, deadline: number) {
+  private setupSocket(socket: UndiciWebSocket, url: URL, deadline: number) {
     socket.addEventListener('open', () => {
       if (this.disposed) {
         socket.close();
@@ -124,15 +108,15 @@ export class Session implements Disposable {
 
       this.socket = socket;
       this.socket.addEventListener('close', () => this.closeEmitter.fire());
-      this.socket.addEventListener('message', (event: unknown) =>
-        this.fromSocketQueue.push(normalizeMessage((event as MessageEvent).data)),
+      this.socket.addEventListener('message', event =>
+        this.fromSocketQueue.push(normalizeMessage(event.data)),
       );
       this.fromBrowserQueue.connect(data => socket.send(data));
     });
 
-    socket.addEventListener('error', (event: unknown) => {
+    socket.addEventListener('error', event => {
       const err =
-        (event as SocketEvent).error ??
+        (event as UndiciErrorEvent).error ??
         new Error(`Error connecting websocket to ${url.toString()}`);
       if (this.socket === socket || Date.now() > deadline) {
         this.errorEmitter.fire(err);
