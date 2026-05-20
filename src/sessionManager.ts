@@ -56,7 +56,7 @@ export class SessionManager implements Disposable {
 
   private async addChildSocket(session: Session, params: ILaunchParams) {
     const [host, port] = params.proxyUri.split(':');
-    session.attachSocket(host, Number(port), params.path);
+    session.attachSocket(host, Number(port), params.path, params.wslInfo);
   }
 
   private async addChildBrowser(session: Session, params: ILaunchParams) {
