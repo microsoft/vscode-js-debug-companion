@@ -3,11 +3,8 @@
  *--------------------------------------------------------*/
 
 import { ChildProcess } from 'child_process';
+import { WebSocket as NodeWebSocket } from 'node:http';
 import split from 'split2';
-import type {
-  ErrorEvent as UndiciErrorEvent,
-  WebSocket as UndiciWebSocket,
-} from 'undici-types';
 import { CancellationTokenSource, Event, EventEmitter } from 'vscode';
 import { retryGetWSEndpoint } from './getWsEndpoint';
 
@@ -95,24 +92,38 @@ export class AttachTarget implements ITarget {
     setTimeout(() => cts.cancel(), 10 * 1000);
 
     const endpoint = await retryGetWSEndpoint(`http://${host}:${port}`, cts.token);
-    const ws = new globalThis.WebSocket(endpoint) as unknown as UndiciWebSocket;
+    const ws = new NodeWebSocket(endpoint);
     ws.binaryType = 'arraybuffer';
 
     return await new Promise<ITarget>((resolve, reject) => {
       ws.addEventListener('open', () => resolve(new AttachTarget(ws)));
-      ws.addEventListener('error', errorEvent =>
-        reject((errorEvent as UndiciErrorEvent).error ?? new Error('WebSocket error')),
-      );
+      ws.addEventListener('error', (errorEvent: unknown) => {
+        const err =
+          typeof errorEvent === 'object' &&
+          errorEvent !== null &&
+          'error' in errorEvent &&
+          (errorEvent as { error?: unknown }).error instanceof Error
+            ? (errorEvent as { error: Error }).error
+            : undefined;
+        reject(err ?? new Error('WebSocket error'));
+      });
     });
   }
 
-  protected constructor(private readonly ws: UndiciWebSocket) {
-    ws.addEventListener('error', evt =>
-      this.errorEmitter.fire((evt as UndiciErrorEvent).error ?? new Error('WebSocket error')),
-    );
+  protected constructor(private readonly ws: InstanceType<typeof NodeWebSocket>) {
+    ws.addEventListener('error', (evt: unknown) => {
+      const err =
+        typeof evt === 'object' &&
+        evt !== null &&
+        'error' in evt &&
+        (evt as { error?: unknown }).error instanceof Error
+          ? (evt as { error: Error }).error
+          : undefined;
+      this.errorEmitter.fire(err ?? new Error('WebSocket error'));
+    });
     ws.addEventListener('close', () => this.closeEmitter.fire());
-    ws.addEventListener('message', event =>
-      this.messageEmitter.fire(normalizeMessage(event.data)),
+    ws.addEventListener('message', (event: unknown) =>
+      this.messageEmitter.fire(normalizeMessage((event as { data: unknown }).data)),
     );
   }
 

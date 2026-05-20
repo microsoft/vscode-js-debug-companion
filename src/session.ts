@@ -3,7 +3,7 @@
  *--------------------------------------------------------*/
 
 import { URL } from 'url';
-import type { ErrorEvent as UndiciErrorEvent, WebSocket as UndiciWebSocket } from 'undici-types';
+import { WebSocket as NodeWebSocket } from 'node:http';
 import { Disposable, EventEmitter } from 'vscode';
 import { ITarget, ITargetMessage, normalizeMessage } from './target';
 
@@ -43,7 +43,7 @@ export class Session implements Disposable {
 
   private disposed = false;
   private browserProcess?: ITarget;
-  private socket?: UndiciWebSocket;
+  private socket?: InstanceType<typeof NodeWebSocket>;
 
   private fromSocketQueue = new MessageQueue<ITargetMessage>();
   private fromBrowserQueue = new MessageQueue<ITargetMessage>();
@@ -94,12 +94,12 @@ export class Session implements Disposable {
       return;
     }
 
-    const socket = new globalThis.WebSocket(url) as unknown as UndiciWebSocket;
+    const socket = new NodeWebSocket(url);
     socket.binaryType = 'arraybuffer';
     this.setupSocket(socket, url, deadline);
   }
 
-  private setupSocket(socket: UndiciWebSocket, url: URL, deadline: number) {
+  private setupSocket(socket: InstanceType<typeof NodeWebSocket>, url: URL, deadline: number) {
     socket.addEventListener('open', () => {
       if (this.disposed) {
         socket.close();
@@ -108,18 +108,22 @@ export class Session implements Disposable {
 
       this.socket = socket;
       this.socket.addEventListener('close', () => this.closeEmitter.fire());
-      this.socket.addEventListener('message', event =>
-        this.fromSocketQueue.push(normalizeMessage(event.data)),
+      this.socket.addEventListener('message', (event: unknown) =>
+        this.fromSocketQueue.push(normalizeMessage((event as { data: unknown }).data)),
       );
       this.fromBrowserQueue.connect(data => socket.send(data));
     });
 
-    socket.addEventListener('error', event => {
+    socket.addEventListener('error', (event: unknown) => {
       const err =
-        (event as UndiciErrorEvent).error ??
-        new Error(`Error connecting websocket to ${url.toString()}`);
+        typeof event === 'object' &&
+        event !== null &&
+        'error' in event &&
+        (event as { error?: unknown }).error instanceof Error
+          ? (event as { error: Error }).error
+          : undefined;
       if (this.socket === socket || Date.now() > deadline) {
-        this.errorEmitter.fire(err);
+        this.errorEmitter.fire(err ?? new Error(`Error connecting websocket to ${url.toString()}`));
       } else {
         setTimeout(() => this.attachSocketLoop(url, deadline), 100);
       }
