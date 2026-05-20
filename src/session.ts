@@ -2,15 +2,10 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { spawn } from 'child_process';
-import duplexer3 from 'duplexer3';
-import { Agent } from 'http';
-import { Socket } from 'net';
-import { Duplex } from 'stream';
 import { URL } from 'url';
 import { Disposable, EventEmitter } from 'vscode';
 import { IWslInfo } from './extension';
-import { ITarget, ITargetMessage } from './target';
+import { ITarget, ITargetMessage, normalizeMessage } from './target';
 
 type SocketEvent = { error?: Error };
 type MessageEvent = { data: unknown };
@@ -23,7 +18,7 @@ type ICompanionWebSocket = {
 
 type ICompanionWebSocketConstructor = new (
   url: string | URL,
-  protocols?: string | string[] | Record<string, unknown>,
+  protocols?: string | string[],
 ) => ICompanionWebSocket;
 
 const WebSocket = (globalThis as unknown as { WebSocket: ICompanionWebSocketConstructor })
@@ -81,11 +76,8 @@ export class Session implements Disposable {
   public attachSocket(host: string, port: number, path: string, wslInfo?: IWslInfo) {
     const url = new URL(`ws://${host}:${port}${path}`);
     const deadline = Date.now() + 5000;
-    if (wslInfo) {
-      this.attachSocketWsl(url, wslInfo, deadline);
-    } else {
-      this.attachSocketLoop(url, deadline);
-    }
+    void wslInfo;
+    this.attachSocketLoop(url, deadline);
   }
 
   /**
@@ -115,51 +107,12 @@ export class Session implements Disposable {
     }
   }
 
-  private attachSocketWsl(url: URL, wslInfo: IWslInfo, deadline: number) {
-    const agent = new Agent();
-
-    // Make a fake connection that attaches to stdin/out, as in my original
-    // unrelated https://github.com/websockets/ws/issues/1944
-    //
-    // The maintainer suggested using setSocket there, but that happens after
-    // the socket is upgraded, and we want the actual HTTP request and upgrade
-    // to happen on these pipes.
-    //
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (agent as any).createConnection = (
-      _options: unknown,
-      callback: (err?: Error | null, stream?: Socket) => void,
-    ) => {
-      const process = spawn('wsl.exe', [
-        '-d',
-        wslInfo.distro,
-        '-u',
-        wslInfo.user,
-        '--',
-        wslInfo.execPath,
-        '-e',
-        `'s=net.connect(${url.port});s.pipe(process.stdout);process.stdin.pipe(s)'`,
-      ]);
-
-      process.on('error', callback);
-
-      process.on('spawn', () => {
-        callback(null, makeNetSocketFromDuplexStream(duplexer3(process.stdin, process.stdout)));
-      });
-    };
-
-    // intentionally don't perMessageDeflate here, since we're local in wsl
-    const ws = new WebSocket(url, { agent });
-    ws.binaryType = 'arraybuffer';
-    this.setupSocket(ws, url, deadline);
-  }
-
   private attachSocketLoop(url: URL, deadline: number) {
     if (this.disposed) {
       return;
     }
 
-    const socket = new WebSocket(url, { perMessageDeflate: true });
+    const socket = new WebSocket(url);
     socket.binaryType = 'arraybuffer';
     this.setupSocket(socket, url, deadline);
   }
@@ -191,51 +144,3 @@ export class Session implements Disposable {
     });
   }
 }
-
-const makeNetSocketFromDuplexStream = (stream: Duplex): Socket => {
-  const cast = stream as Socket;
-  const patched: { [K in keyof Omit<Socket, keyof Duplex>]: Socket[K] } = {
-    bufferSize: 0,
-    bytesRead: 0,
-    bytesWritten: 0,
-    connecting: false,
-    localAddress: '127.0.0.1',
-    localPort: 1,
-    remoteAddress: '127.0.0.1',
-    remoteFamily: 'tcp',
-    remotePort: 1,
-    address: () => ({ address: '127.0.0.1', family: 'tcp', port: 1 }),
-    unref: () => cast,
-    ref: () => cast,
-    connect: (_port: unknown, _host?: unknown, connectionListener?: () => void) => {
-      if (connectionListener) {
-        setImmediate(connectionListener);
-      }
-      return cast;
-    },
-    setKeepAlive: () => cast,
-    setNoDelay: () => cast,
-    setTimeout: (_timeout: number, callback?: () => void) => {
-      callback?.();
-      return cast;
-    },
-  };
-
-  return Object.assign(stream, patched) as Socket;
-};
-
-const normalizeMessage = (message: unknown): ITargetMessage => {
-  if (
-    typeof message === 'string' ||
-    message instanceof Uint8Array ||
-    message instanceof ArrayBuffer
-  ) {
-    return message;
-  }
-
-  if (ArrayBuffer.isView(message)) {
-    return new Uint8Array(message.buffer, message.byteOffset, message.byteLength);
-  }
-
-  return String(message);
-};

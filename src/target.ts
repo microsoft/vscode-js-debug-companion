@@ -19,7 +19,7 @@ type ICompanionWebSocket = {
 
 type ICompanionWebSocketConstructor = new (
   url: string | URL,
-  protocols?: string | string[] | Record<string, unknown>,
+  protocols?: string | string[],
 ) => ICompanionWebSocket;
 
 const WebSocket = (globalThis as unknown as { WebSocket: ICompanionWebSocketConstructor })
@@ -107,12 +107,7 @@ export class AttachTarget implements ITarget {
     setTimeout(() => cts.cancel(), 10 * 1000);
 
     const endpoint = await retryGetWSEndpoint(`http://${host}:${port}`, cts.token);
-    const ws = new WebSocket(endpoint, {
-      headers: { host: 'localhost' },
-      perMessageDeflate: false,
-      maxPayload: 256 * 1024 * 1024,
-      followRedirects: true,
-    });
+    const ws = new WebSocket(endpoint);
     ws.binaryType = 'arraybuffer';
 
     return await new Promise<ITarget>((resolve, reject) => {
@@ -192,7 +187,7 @@ export class ServerTarget implements ITarget {
   }
 }
 
-const normalizeMessage = (message: unknown): ITargetMessage => {
+export const normalizeMessage = (message: unknown): ITargetMessage => {
   if (
     typeof message === 'string' ||
     message instanceof Uint8Array ||
